@@ -1,32 +1,59 @@
 package main
 
 import (
-	"errors"
+	"bufio"
+	"io"
 	"strconv"
 	"strings"
 )
 
-func serializeRESP(value string) string {
+func SerializeRESP(value string) string {
 	if value == "nil" {
 		return "$-1/r/n"
 	}
 	return "+" + value + "\r\n"
 }
 
-func deserializeRESP(input string) ([]string, error) {
-	lines := strings.Split(strings.TrimSpace(input), "\r\n")
-	if len(lines) < 1 {
-		return nil, errors.New("invalid RESP format")
+func DeserializeRESP(reader *bufio.Reader) ([]string, error) {
+	var result []string
+
+	
+	prefix, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
 	}
 
-	if lines[0][0] == '*' {
-		numArgs, _ := strconv.Atoi(lines[0][1:])
-		parsed := make([]string, 0, numArgs)
-		for i := 2; i < len(lines); i += 2 {
-			parsed = append(parsed, lines[i])
+	switch prefix {
+	case '*': 
+		lengthStr, _ := reader.ReadString('\n')
+		length, _ := strconv.Atoi(strings.TrimSpace(lengthStr))
+		for i := 0; i < length; i++ {
+			elem, err := DeserializeRESP(reader)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, elem...)
 		}
-		return parsed, nil
-	}
+		return result, nil
 
-	return []string{lines[0][1:]}, nil
+	case '$': 
+		lengthStr, _ := reader.ReadString('\n')
+		length, _ := strconv.Atoi(strings.TrimSpace(lengthStr))
+		if length < 0 {
+			return nil, nil
+		}
+		buf := make([]byte, length+2)
+		_, err := io.ReadFull(reader, buf)
+		if err != nil {
+			return nil, err
+		}
+		return []string{string(buf[:length])}, nil
+
+	default:
+		
+		reader.UnreadByte()
+		line, _ := reader.ReadString('\n')
+		return strings.Fields(strings.TrimSpace(line)), nil
+	}
 }
+

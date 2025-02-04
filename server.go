@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
+
 )
 
-func startServer(port string) {
+func StartServer(port string) {
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		fmt.Println("Error starting server:", err)
@@ -23,38 +25,46 @@ func startServer(port string) {
 			continue
 		}
 
-		go handleConnection(conn)
+		go HandleConnection(conn)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func HandleConnection(conn net.Conn) {
 	defer conn.Close()
 	fmt.Println("New client connected:", conn.RemoteAddr())
 
-	buf := make([]byte, 1024)
+	reader := bufio.NewReader(conn)
 
 	for {
-		n, err := conn.Read(buf)
+		parsedMessage, err := DeserializeRESP(reader)
 		if err != nil {
-			fmt.Println("Client disconnected:", err)
-			return
+			conn.Write([]byte("-ERR Error parsing RESP command\r\n"))
+			continue
 		}
-
-		message := string(buf[:n])
-		parsedMessage, err := deserializeRESP(message)
-		if err != nil {
-			conn.Write([]byte(serializeRESP("Error parsing command")))
+		fmt.Println("parsed: ", parsedMessage)
+		
+		if len(parsedMessage) == 0 {
+			conn.Write([]byte("-ERR empty command\r\n"))
 			continue
 		}
 
-		response, err := ExecuteCommand(parsedMessage)
-		if err != nil {
-			conn.Write([]byte(serializeRESP(err.Error())))
-		} else if response == "" {
-			conn.Write([]byte(serializeRESP("nil")))
-		} else {
-			conn.Write([]byte(serializeRESP(response)))
+		
+		fmt.Println("Parsed command:", parsedMessage)
+
+	
+		if len(parsedMessage) == 0 || parsedMessage[0] == "" {
+			conn.Write([]byte("-ERR empty command\r\n"))
+			continue
 		}
 
+	
+		response, err := ExecuteCommand(parsedMessage)
+		if err != nil {
+			conn.Write([]byte("-" + err.Error() + "\r\n")) 
+		} else if response == "" {
+			conn.Write([]byte("$-1\r\n")) 
+		} else {
+			conn.Write([]byte("+" + response + "\r\n"))
+		}
 	}
 }

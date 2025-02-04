@@ -75,6 +75,136 @@ func ExecuteCommand(parsedMessage []string) (string, error) {
 
 		return value, nil
 
+	case "EXISTS":
+		if len(parsedMessage) < 2 {
+			return "", errors.New("ERR wrong number of arguements for EXISTS")
+		}
+		key := parsedMessage[1]
+		exists := checkIfKeyExists(key)
+
+		if exists {
+			return "1", nil
+		}
+		return "0", nil
+
+	case "DEL":
+		if len(parsedMessage) < 2 {
+			return "",errors.New("ERR wrong number of arguments for DEL")
+		}
+		deletedCount := 0
+		for _, key := range parsedMessage[1:] {
+			if deleteKey(key) {
+				deletedCount++
+			}
+		}
+		return strconv.Itoa(deletedCount),nil
+
+	case "INCR":
+		if len(parsedMessage) < 2 {
+			return "",errors.New("ERR wrong number of arguments for INCR")
+		}
+
+		key := parsedMessage[1]
+		currentValue, exists := GetKey(key)
+
+		if !exists {
+			return "", errors.New("ERR key does not exists")
+		}
+
+		intValue, err := strconv.Atoi(currentValue)
+		if err != nil {
+			return "",errors.New("ERR value is not an integer")
+		}
+		newValue := intValue +1
+		SetKey(key,strconv.Itoa(newValue),time.Time{})
+		return strconv.Itoa(newValue),nil
+
+	case "DECR":
+		if len(parsedMessage) < 2 {
+			return "",errors.New("ERR wrong number of arguments for INCR")
+		}
+
+		key := parsedMessage[1]
+		currentValue, exists := GetKey(key)
+
+		if !exists {
+			return "", errors.New("ERR key does not exists")
+		}
+
+		intValue, err := strconv.Atoi(currentValue)
+		if err != nil {
+			return "",errors.New("ERR value is not an integer")
+		}
+		newValue := intValue -1
+		SetKey(key,strconv.Itoa(newValue),time.Time{})
+		return strconv.Itoa(newValue),nil
+
+	case "LPUSH":
+		if len(parsedMessage) < 3 {
+			return "", errors.New("ERR wrong number of arguments for LPUSH")
+		}
+	
+		key := parsedMessage[1]
+		values := parsedMessage[2:]
+	
+		existingValue, exists := GetKey(key)
+		var list []string
+	
+		if exists {
+			list = strings.Split(existingValue, ",") 
+		}
+	
+		list = append(values, list...)
+	
+		SetKey(key, strings.Join(list, ","), time.Time{})
+		return strconv.Itoa(len(list)), nil
+	
+	case "RPUSH":
+		if len(parsedMessage) < 3 {
+			return "", errors.New("ERR wrong number of arguments for RPUSH")
+		}
+	
+		key := parsedMessage[1]
+		values := parsedMessage[2:]
+	
+		existingValue, exists := GetKey(key)
+		var list []string
+	
+		if exists {
+			list = strings.Split(existingValue, ",")
+		}
+	
+		list = append(list, values...)
+	
+		SetKey(key, strings.Join(list, ","), time.Time{})
+		return strconv.Itoa(len(list)), nil
+	
+	case "SAVE":
+		err := SaveDatabase("lyanDB.rdb")
+		if err != nil {
+			return "", errors.New("ERR failed to save database")
+		}
+		return "OK", nil
+	case "CONFIG":
+		if len(parsedMessage) < 2 {
+			return "", errors.New("ERR wrong number of arguments for CONFIG")
+		}
+		
+		subCommand := strings.ToUpper(parsedMessage[1])
+		if subCommand == "GET" {
+			if len(parsedMessage) < 3 {
+				return "", errors.New("ERR wrong number of arguments for CONFIG GET")
+			}
+			key := parsedMessage[2]
+			
+			
+			if key == "databases" {
+				return "1", nil
+			}
+			return "", errors.New("ERR unsupported CONFIG GET key")
+		}
+		return "", errors.New("ERR unknown CONFIG subcommand")
+
 	default:
 		return "", errors.New("ERR unknown command")
 	}

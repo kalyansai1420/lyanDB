@@ -1,3 +1,3 @@
 module github.com/kalyansai1420/lyanDB
 
-go 1.22.5
+go 1.20
