@@ -1,25 +1,32 @@
 package main
 
 import (
-	"fmt"
+	"errors"
+	"strconv"
 	"strings"
 )
 
-// Serialize the RESP message (Convert into Redis protocol format)
-func serializeRESP(message string) string {
-	// We are handling Simple Strings for now (e.g., "+PONG\r\n")
-	return fmt.Sprintf("+%s\r\n", message)
+func serializeRESP(value string) string {
+	if value == "nil" {
+		return "$-1/r/n"
+	}
+	return "+" + value + "\r\n"
 }
 
-// Deserialize the RESP message (Convert from Redis protocol format)
-func deserializeRESP(data []byte) string {
-	// For simplicity, we're assuming the message is a simple string (e.g., "+PING\r\n")
-	message := strings.TrimSpace(string(data))
-	if strings.HasPrefix(message, "*") {
-		messageParts := strings.Split(message, "\r\n")
-		if len(messageParts) >= 2 {
-			return messageParts[2] // Extract the command, e.g., "PING"
-		}
+func deserializeRESP(input string) ([]string, error) {
+	lines := strings.Split(strings.TrimSpace(input), "\r\n")
+	if len(lines) < 1 {
+		return nil, errors.New("invalid RESP format")
 	}
-	return ""
+
+	if lines[0][0] == '*' {
+		numArgs, _ := strconv.Atoi(lines[0][1:])
+		parsed := make([]string, 0, numArgs)
+		for i := 2; i < len(lines); i += 2 {
+			parsed = append(parsed, lines[i])
+		}
+		return parsed, nil
+	}
+
+	return []string{lines[0][1:]}, nil
 }
